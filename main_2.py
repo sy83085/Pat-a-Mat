@@ -38,18 +38,23 @@ main_form = uic.loadUiType("./serverChat.ui")[0]
 #                 self.ResText.emit(data)
 
 
+# class ReceiveThread(Thread):
+    
+#     def __init__(self):
+#         super().__init__()
+#         server = TCPMultiThreadServer(port = 2500, listener = 100) # TCPMultiThreadServer 서버 객체 생성
+#         clientSock, addr = server.accept() # 서버에 연결된 클라이언트가 존재하면 클라이언트에 연결된 소켓과 클라이언트의 어드레스를 반환한다.
+#         self.cThread = Thread(target=handler, args=(server, clientSock)) # 연결된 클라이언트에 대한 쓰레드 생성
+
+#     def run(self):
+#         self.cThread.start()
+        
 
 
 class MainWindow(QMainWindow, main_form):  #큐티메인화면
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        
-        # self.server = TCPMultiThreadServer()
-        # self.receiveThread = ReceiveThread(server=TCPMultiThreadServer)
-        # self.receiveThread.start()
-        # self.receiveThread.ResText.connect(self.signAappend)
-
 
         self.timer = QTimer(self)
         self.textSend.clicked.connect(self.appendText)
@@ -211,39 +216,34 @@ class MainWindow(QMainWindow, main_form):  #큐티메인화면
         hands.close()
         cv2.destroyAllWindows()
 
-    def signAappend(self, data : ReqTextMessage):
-        self.msg = data.textMessage
-        print(self.msg)
+    def signAappend(self, data):
+        # self.msg = data
+        self.textBrowser.append(data)
 
 
 
-def handler(server : TCPMultiThreadServer, cSock):
-    while True:
-        print(1)
-        headerBytes, dataBytesList = server.receive(cSock)
-        # print(data)
-        if headerBytes is None and dataBytesList is None:
-                break
-        processdata = server.processData(cSock=cSock, headerBytes=headerBytes, dataBytesList=dataBytesList)
-        print(processdata)
+    def handler(self, server : TCPMultiThreadServer, cSock):
+        while True:
+            print(1)
+            headerBytes, dataBytesList = server.receive(cSock)
+            # print(data)
+            if headerBytes is None and dataBytesList is None:
+                    break
+            processdata = server.processData(cSock=cSock, headerBytes=headerBytes, dataBytesList=dataBytesList)
+            MainWindow.signAappend(self, processdata)
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     mainForm = MainWindow()
 
-
     server = TCPMultiThreadServer(port = 2500, listener = 100) # TCPMultiThreadServer 서버 객체 생성
 
     print("waiting for connection...")
     clientSock, addr = server.accept() # 서버에 연결된 클라이언트가 존재하면 클라이언트에 연결된 소켓과 클라이언트의 어드레스를 반환한다.
-    cThread = Thread(target=handler, args=(server, clientSock)) # 연결된 클라이언트에 대한 쓰레드 생성
+    cThread = Thread(target=mainForm.handler, args=(server, clientSock)) # 연결된 클라이언트에 대한 쓰레드 생성
     cThread.daemon = True # 생성된 쓰레드의 데몬 여부를 True로 한다. (데몬 스레드 = 메인 스레드가 종료되면 즉시 종료되는 스레드)
     cThread.start() # 쓰레드 시작
-
-    # server_2 = TCPMultiThreadServer()
-    # receiveThread = ReceiveThread(server)
-    # receiveThread.start()
 
     mainForm.show()
     sys.exit(app.exec_())
