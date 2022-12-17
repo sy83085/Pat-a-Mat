@@ -18,57 +18,43 @@ from dataheader import *
 
 main_form = uic.loadUiType("./serverChat.ui")[0]
 
-# class ReceiveThread(QThread):
-#     connectFail = pyqtSignal()
-#     ResText = pyqtSignal(ReqTextMessage)
-
-#     def __init__(self, server : TCPMultiThreadServer):
-#         super().__init__()
-#         self.server = server
-    
-#     def run(self):
-#         while True:
-#             data = self.server.receive(self)
-#             if not data:
-#                 self.connectFail.emit()
-#                 print("연결 실패")
-#                 break
-#             # MainWindow.QtStart
-#             if type(data) == ReqTextMessage:
-#                 self.ResText.emit(data)
-
-
-
 
 class MainWindow(QMainWindow, main_form):  #큐티메인화면
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        
-        # self.server = TCPMultiThreadServer()
-        # self.receiveThread = ReceiveThread(server=TCPMultiThreadServer)
-        # self.receiveThread.start()
-        # self.receiveThread.ResText.connect(self.signAappend)
 
+        self.server = TCPMultiThreadServer(port = 2500, listener = 100) # TCPMultiThreadServer 서버 객체 생성
+
+        print("waiting for connection...")
+        self.clientSock, addr = self.server.accept()
 
         self.timer = QTimer(self)
         self.textSend.clicked.connect(self.appendText)
         self.videoBtn.clicked.connect(self.startVideo)
-        self.videoSend.clicked.connect(self.sendVideo)
         self.timer.timeout.connect(self.start)
-        # self.receive
+
 
     def appendText(self):
         msg = self.lineEdit.text()
-        self.textBrowser.append(msg)
+        self.textBrowser.append("user 1 : "+ msg)
+
+        data = ResText(msg)
+        self.server.send(self.clientSock, data)
+
         self.lineEdit.clear()
     
     def startVideo(self):
-        # self.timer.start()
         self.start()
     
-    def sendVideo(self):
-        self.timer.start()
+    def signAappend(self, data):        # 수어 영상 ui에 추가시켜주는 부분 + c++로 send하는 부분 추가하기
+        self.textBrowser.append("user 1 : "+ data)
+        text = ResText(data)
+        self.server.send(self.clientSock, text)
+
+    def messageAppend(self, msg):       # c++에서 받은거 ui에 append시켜주는 함수
+        text = msg.textMessage
+        self.textBrowser.append("user 2 : "+ text)
 
     def start(self):
         kn = joblib.load('files/ML-model.pkl')
@@ -211,39 +197,26 @@ class MainWindow(QMainWindow, main_form):  #큐티메인화면
         hands.close()
         cv2.destroyAllWindows()
 
-    def signAappend(self, data : ReqTextMessage):
-        self.msg = data.textMessage
-        print(self.msg)
 
 
+    def handler(self, server : TCPMultiThreadServer, cSock):
+        while True:
+            headerBytes, dataBytesList = server.receive(cSock)
+            # print(data)
+            if headerBytes is None and dataBytesList is None:
+                    break
+            processdata = server.processData(cSock=cSock, headerBytes=headerBytes, dataBytesList=dataBytesList)
 
-def handler(server : TCPMultiThreadServer, cSock):
-    while True:
-        print(1)
-        headerBytes, dataBytesList = server.receive(cSock)
-        # print(data)
-        if headerBytes is None and dataBytesList is None:
-                break
-        processdata = server.processData(cSock=cSock, headerBytes=headerBytes, dataBytesList=dataBytesList)
-        print(processdata)
+            MainWindow.messageAppend(self, processdata)
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     mainForm = MainWindow()
 
-
-    server = TCPMultiThreadServer(port = 2500, listener = 100) # TCPMultiThreadServer 서버 객체 생성
-
-    print("waiting for connection...")
-    clientSock, addr = server.accept() # 서버에 연결된 클라이언트가 존재하면 클라이언트에 연결된 소켓과 클라이언트의 어드레스를 반환한다.
-    cThread = Thread(target=handler, args=(server, clientSock)) # 연결된 클라이언트에 대한 쓰레드 생성
+    cThread = Thread(target=mainForm.handler, args=(mainForm.server, mainForm.clientSock)) # 연결된 클라이언트에 대한 쓰레드 생성
     cThread.daemon = True # 생성된 쓰레드의 데몬 여부를 True로 한다. (데몬 스레드 = 메인 스레드가 종료되면 즉시 종료되는 스레드)
     cThread.start() # 쓰레드 시작
-
-    # server_2 = TCPMultiThreadServer()
-    # receiveThread = ReceiveThread(server)
-    # receiveThread.start()
 
     mainForm.show()
     sys.exit(app.exec_())

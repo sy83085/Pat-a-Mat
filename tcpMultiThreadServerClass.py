@@ -32,8 +32,11 @@ class TCPMultiThreadServer:
             return False
 
     def send(self, cSock : socket.socket, response):
+        print(response)
+        print(response.headerBytes)
         self.sendData(cSock, response.headerBytes)
         for dataByte in response.dataBytesList:
+            print("dataByte : ", dataByte)
             self.sendData(cSock, dataByte)
         
 
@@ -56,7 +59,6 @@ class TCPMultiThreadServer:
         except Exception as e:
             rSock.close()
             self.disconnect(cAddr)
-            print(e.with_traceback())
             return None
     
     def receive(self, rSock : socket.socket = None):
@@ -75,17 +77,6 @@ class TCPMultiThreadServer:
     
     def processData(self, cSock : socket.socket, headerBytes : bytearray, dataBytesList : list[bytearray]):
         cAddr = cSock.getpeername()
-        requestType = int.from_bytes(headerBytes[4:8], "little")
-        print(int.from_bytes(headerBytes[0:4], "little"))
-        print(int.from_bytes(headerBytes[4:8], "little"))
-        print(int.from_bytes(headerBytes[8:12], "little"))
-        print(len(dataBytesList))
 
-        # print(dataBytesList)
-        textMessage = dataBytesList[0].decode()
-        return textMessage
-
-
-    def dataSend(self, textMessage):
-        msg = textMessage
-        return msg
+        return ReqTextMessage(headerBytes, dataBytesList)
+        
